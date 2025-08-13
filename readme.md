@@ -12,6 +12,7 @@
 9. Lottie
 10. Tube Geometry
 11. Ice Material
+12. SpotLight with ray
 __... ... ...__
 
 ## Setup
