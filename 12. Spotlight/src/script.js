@@ -152,92 +152,141 @@ scene.add(spotLightTarget);
 const spotLightHelper = new THREE.SpotLightHelper(spotLight);
 // scene.add(spotLightHelper);
 
-// Cone geometry to visualize spotlight ray
-// Function to create cone geometry for spotlight ray visualization
-function createSpotlightRay(
-  spotlight,
-  targetPosition = new THREE.Vector3(0, 0, 0),
-  color = 0xffff00,
-  opacity = 0.3
-) {
-  // Calculate cone dimensions based on spotlight parameters
-  const spotlightAngle = spotlight.angle;
-  const spotlightDistance = spotlight.distance;
-  const coneRadius = Math.tan(spotlightAngle) * spotlightDistance;
+function VolumetricSpotLightMaterial() {
+  //
+  var vertexShader = [
+    "varying vec3 vNormal;",
+    "varying vec3 vWorldPosition;",
 
-  const coneGeometry = new THREE.ConeGeometry(
-    coneRadius,
-    spotlightDistance,
-    128,
+    "void main(){",
+    "// compute intensity",
+    "vNormal		= normalize( normalMatrix * normal );",
+
+    "vec4 worldPosition	= modelMatrix * vec4( position, 1.0 );",
+    "vWorldPosition		= worldPosition.xyz;",
+
+    "// set gl_Position",
+    "gl_Position	= projectionMatrix * modelViewMatrix * vec4( position, 1.0 );",
+    "}",
+  ].join("\n");
+  var fragmentShader = [
+    "varying vec3		vNormal;",
+    "varying vec3		vWorldPosition;",
+
+    "uniform vec3		lightColor;",
+
+    "uniform vec3		spotPosition;",
+
+    "uniform float		attenuation;",
+    "uniform float		anglePower;",
+
+    "void main(){",
+    "float intensity;",
+
+    //////////////////////////////////////////////////////////
+    // distance attenuation					//
+    //////////////////////////////////////////////////////////
+    "intensity	= distance(vWorldPosition, spotPosition)/attenuation;",
+    "intensity	= 1.0 - clamp(intensity, 0.0, 1.0);",
+
+    //////////////////////////////////////////////////////////
+    // intensity on angle					//
+    //////////////////////////////////////////////////////////
+    "vec3 normal	= vec3(vNormal.x, vNormal.y, abs(vNormal.z));",
+    "float angleIntensity	= pow( dot(normal, vec3(0.0, 0.0, 1.0)), anglePower );",
+    "intensity	= intensity * angleIntensity;",
+    // 'gl_FragColor	= vec4( lightColor, intensity );',
+
+    //////////////////////////////////////////////////////////
+    // final color						//
+    //////////////////////////////////////////////////////////
+
+    // set the final color
+    "gl_FragColor	= vec4( lightColor, intensity);",
+    "}",
+  ].join("\n");
+
+  // create custom material from the shader code above
+  //   that is within specially labeled script tags
+  var material = new THREE.ShaderMaterial({
+    uniforms: {
+      attenuation: {
+        type: "f",
+        value: 5.0,
+      },
+      anglePower: {
+        type: "f",
+        value: 5.5,
+      },
+      spotPosition: {
+        type: "v3",
+        value: new THREE.Vector3(0, 0, 0),
+      },
+      lightColor: {
+        type: "c",
+        value: new THREE.Color("cyan"),
+      },
+    },
+    vertexShader: vertexShader,
+    fragmentShader: fragmentShader,
+    // side		: THREE.DoubleSide,
+    // blending	: THREE.AdditiveBlending,
+    transparent: true,
+    depthWrite: false,
+  });
+  return material;
+}
+
+function createSpotlightRay() {
+  const coneGeometry = new THREE.CylinderGeometry(
+    0.02,
+    0.4,
+    3,
+    32 * 2,
     1,
     true
   );
-  const coneMaterial = new THREE.MeshBasicMaterial({
-    color: color,
-    transparent: true,
-    opacity: opacity,
-    // wireframe: true,
-  });
+  coneGeometry.applyMatrix4(new THREE.Matrix4().makeTranslation(0, -3 / 2, 0));
+  coneGeometry.applyMatrix4(new THREE.Matrix4().makeRotationX(-Math.PI / 2));
+  const coneMaterial = new VolumetricSpotLightMaterial();
   const coneMesh = new THREE.Mesh(coneGeometry, coneMaterial);
-  coneMesh.position.copy(spotlight.position);
-
-  // Calculate direction from spotlight to target
-  const direction = targetPosition.clone().sub(spotlight.position).normalize();
-  const quaternion = new THREE.Quaternion();
-  quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), direction);
-  coneMesh.setRotationFromQuaternion(quaternion);
-
-  // Move cone so its top (narrow end) is at the spotlight position
-  coneMesh.position.add(
-    direction.clone().multiplyScalar(spotlightDistance * 0.5)
-  );
+  coneMesh.position.copy(spotLight.position);
+  coneMaterial.uniforms.lightColor.value.set("white");
+  coneMaterial.uniforms.spotPosition.value = coneMesh.position;
+  coneMaterial.opacity = 0;
 
   return coneMesh;
 }
 
-// Create spotlight ray visualization
-const spotlightRay = createSpotlightRay(spotLight);
-// scene.add(spotlightRay);
-
-// Function to update ray direction to follow spotlight target
-function updateRayDirection() {
-  if (spotLightTarget && spotlightRay) {
-    // Calculate direction from spotlight to target
-    const direction = new THREE.Vector3();
-    direction
-      .subVectors(spotLightTarget.position, spotLight.position)
-      .normalize();
-
-    // Update ray position and rotation
-    spotlightRay.position.copy(spotLight.position);
-
-    // Calculate rotation to point toward target
-    const quaternion = new THREE.Quaternion();
-    quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), direction);
-    spotlightRay.setRotationFromQuaternion(quaternion);
-
-    // Move cone so its top (narrow end) is at the spotlight position
-    spotlightRay.position.add(
-      direction.clone().multiplyScalar(spotLight.distance * 0.5)
-    );
-  }
-}
+const spotlightRay = createSpotlightRay();
+scene.add(spotlightRay);
 
 /**
  * Functioins
  */
-function testfunction() {
-  console.log("testfunction!");
+function turnOffLight() {
+  gsap.to(spotlightRay.material.uniforms.attenuation, {
+    value: 0.0,
+    duration: 0.5,
+    ease: "power2.inOut",
+  });
 }
 
+function turnOnLight() {
+  gsap.to(spotlightRay.material.uniforms.attenuation, {
+    value: 2.0,
+    duration: 1,
+    ease: "power2.inOut",
+  });
+}
 /**
  * Action Listeners
  */
 // Click Test
-window.addEventListener("click", (event) => {
-  console.log("clicked!");
-  testfunction();
-});
+// window.addEventListener("click", (event) => {
+//   console.log("clicked!");
+//   turnOnLight();
+// });
 
 // Auto Resize
 window.addEventListener("resize", () => {
@@ -271,18 +320,9 @@ const animate = () => {
   // Delta Time
   let delta = clock.getDelta();
 
-      if (spotLightTarget) {
-      spotLightTarget.position.x = Math.sin(test) * Math.sqrt(2) + 0;
-      spotLightTarget.position.z = Math.cos(test) * Math.sqrt(2) + 5;
-      test += delta;
-      spotLight.target = spotLightTarget;
-      
-      // Update ray direction to follow the spotlight
-      updateRayDirection();
-      
-      // Update spotlight helper to follow the light direction
-      // spotLightHelper.update();
-    }
+  if (spotlightRay) {
+    spotlightRay.rotation.y += delta;
+  }
 
   // Update controls
   orbitControls.update();

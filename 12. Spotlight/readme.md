@@ -1,14 +1,15 @@
 # <p style="text-align: center;">Startup</p>
 
 ## Content
+
 This is simple structure for starting three.js project!!!
 
-
 ## Setup
+
 Download [Node.js](https://nodejs.org/en/download/).
 Run this followed commands:
 
-``` bash
+```bash
 # Install dependencies (only the first time)
 npm install
 
@@ -20,6 +21,7 @@ npm run build
 ```
 
 ## Thanks to...
-* [Bruno Simon](https://threejs-journey.com/)
-* [Discord Members](https://discord.gg/56GBJwAnUS)
 
+- [Bruno Simon](https://threejs-journey.com/)
+- [Discord Members](https://discord.gg/56GBJwAnUS)
+- [threex.volumetricspotlight](https://github.com/jeromeetienne/threex.volumetricspotlight)
